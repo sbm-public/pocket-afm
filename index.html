@@ -1,6 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>Pocket AFM</title>
-<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Pocket AFM">
+<meta name="theme-color" content="#f6f5f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141413" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="icon.png">
 <style>
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 /* Layout: one-screen phone chat. Sticky header, scrolling thread, composer pinned to the bottom. Sheets slide up for settings and history. */
 :root{
   --bg:#f6f5f2; --panel:#ffffff; --fg:#1c1b19; --muted:#6f6c66; --line:#e3e0da;
@@ -87,7 +99,8 @@ label.f span{display:block;font-size:12px;letter-spacing:.04em;text-transform:up
 .hist small{display:block;color:var(--muted);font:12px var(--mono)}
 .hist .x{color:var(--muted);padding:6px}
 </style>
-
+</head>
+<body>
 <div id="app">
   <header>
     <button class="ib" id="btnHist" aria-label="Chat history"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></button>
@@ -290,3 +303,5 @@ document.querySelectorAll(".sheet").forEach(s=>s.addEventListener("click",e=>{if
 cur=chats[0]||null; if(!cur)newChat(); else render();
 })();
 </script>
+</body>
+</html>
