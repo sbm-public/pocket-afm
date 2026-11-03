@@ -1,0 +1,292 @@
+<title>Pocket AFM</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one-screen phone chat. Sticky header, scrolling thread, composer pinned to the bottom. Sheets slide up for settings and history. */
+:root{
+  --bg:#f6f5f2; --panel:#ffffff; --fg:#1c1b19; --muted:#6f6c66; --line:#e3e0da;
+  --accent:#2f5d50; --accent-fg:#ffffff; --me:#2f5d50; --me-fg:#ffffff; --them:#ffffff;
+  --danger:#a33a2a; --code:#edeae4;
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#141413; --panel:#1e1e1c; --fg:#ebe8e2; --muted:#9a968e; --line:#2c2b28;
+  --accent:#7fb3a3; --accent-fg:#101512; --me:#2f5d50; --me-fg:#f1f5f3; --them:#1e1e1c;
+  --danger:#e07a68; --code:#262522; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#141413; --panel:#1e1e1c; --fg:#ebe8e2; --muted:#9a968e; --line:#2c2b28;
+  --accent:#7fb3a3; --accent-fg:#101512; --me:#2f5d50; --me-fg:#f1f5f3; --them:#1e1e1c;
+  --danger:#e07a68; --code:#262522; color-scheme:dark }
+
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.45 var(--font);-webkit-text-size-adjust:100%}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+*{box-sizing:border-box}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0;padding:0}
+button:focus-visible,textarea:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+#app{height:100%;display:flex;flex-direction:column}
+
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:flex;align-items:center;gap:8px;
+  padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  background:var(--bg);border-bottom:1px solid var(--line)}
+header h1{margin:0;font-size:17px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip{font:12px/1 var(--mono);color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:5px 8px;max-width:40vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ib{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;color:var(--fg)}
+.ib:active{background:var(--line)}
+.ib svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+#thread{flex:1;overflow-y:auto;overscroll-behavior:contain;
+  padding-block:14px 8px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:flex;flex-direction:column;gap:10px}
+.msg{max-width:86%;padding:10px 13px;border-radius:16px;white-space:pre-wrap;word-wrap:break-word;min-width:0}
+.msg.user{align-self:flex-end;background:var(--me);color:var(--me-fg);border-bottom-right-radius:5px}
+.msg.assistant{align-self:flex-start;background:var(--them);border:1px solid var(--line);border-bottom-left-radius:5px}
+.msg.error{align-self:stretch;max-width:none;background:transparent;border:1px solid var(--danger);color:var(--danger);font-size:14px;border-radius:10px}
+.msg code{font:14px var(--mono);background:var(--code);padding:1px 5px;border-radius:5px}
+.msg pre{margin:6px 0;padding:10px;background:var(--code);border-radius:10px;overflow-x:auto}
+.msg pre code{background:none;padding:0}
+.msg strong{font-weight:650}
+.msg.assistant .meta{display:block;margin-top:6px;font:11px var(--mono);color:var(--muted)}
+.empty{margin:auto;text-align:center;color:var(--muted);max-width:28ch;font-size:15px}
+.empty b{display:block;color:var(--fg);font-size:17px;font-weight:600;margin-bottom:6px}
+.empty button{color:var(--accent);text-decoration:underline;margin-top:10px}
+.cursor::after{content:"▍";color:var(--accent);animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.cursor::after{animation:none}}
+
+#composer{display:flex;align-items:flex-end;gap:8px;border-top:1px solid var(--line);background:var(--bg);
+  padding-block:8px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+#input{flex:1;min-width:0;resize:none;max-height:38vh;border:1px solid var(--line);background:var(--panel);border-radius:18px;padding:9px 14px;line-height:1.35;font-size:16px}
+#send{width:38px;height:38px;border-radius:50%;background:var(--accent);color:var(--accent-fg);display:grid;place-items:center;flex:none}
+#send:disabled{opacity:.4}
+#send svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+#send.stop{background:var(--danger)}
+
+.sheet{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.35);display:flex;align-items:flex-end}
+.sheet .card{width:100%;max-height:92%;overflow-y:auto;background:var(--panel);border-radius:18px 18px 0 0;
+  padding-block:14px calc(18px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.card h2{margin:0 0 14px;font-size:17px;font-weight:600;display:flex;align-items:center}
+.card h2 button{margin-left:auto;color:var(--accent);font-weight:500}
+label.f{display:block;margin-bottom:14px}
+label.f span{display:block;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.card input[type=text],.card input[type=password],.card textarea,.card select{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:9px 11px;font-size:16px}
+.card textarea{min-height:84px;resize:vertical}
+.hint{font-size:12.5px;color:var(--muted);margin:-8px 0 14px}
+.hint code{font:12px var(--mono)}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{flex:1;padding:9px;color:var(--muted)}
+.seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-fg)}
+.row{display:flex;gap:10px;align-items:center;margin-bottom:14px}
+.row input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent)}
+.primary{width:100%;padding:12px;border-radius:12px;background:var(--accent);color:var(--accent-fg);font-weight:600}
+.danger{color:var(--danger);font-size:14px}
+.hist{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)}
+.hist button.t{flex:1;min-width:0;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hist small{display:block;color:var(--muted);font:12px var(--mono)}
+.hist .x{color:var(--muted);padding:6px}
+</style>
+
+<div id="app">
+  <header>
+    <button class="ib" id="btnHist" aria-label="Chat history"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></button>
+    <h1 id="title">New chat</h1>
+    <span class="chip" id="modelChip">model</span>
+    <button class="ib" id="btnNew" aria-label="New chat"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button class="ib" id="btnSet" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+  </header>
+
+  <div id="thread"></div>
+
+  <form id="composer" autocomplete="off">
+    <textarea id="input" rows="1" placeholder="Message" enterkeyhint="send"></textarea>
+    <button id="send" type="submit" aria-label="Send" disabled><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+  </form>
+</div>
+
+<div class="sheet" id="setSheet" hidden>
+  <div class="card">
+    <h2>Settings <button id="setClose" type="button">Done</button></h2>
+    <label class="f"><span>LLM proxy API key</span><input type="password" id="sKey" placeholder="sk-..."></label>
+    <p class="hint">Stored only in this browser on this device. Create one at app.surgehq.ai under LLM Proxy Settings.</p>
+    <label class="f"><span>Model</span><input type="text" id="sModel" placeholder="afm-v11-5" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+    <label class="f"><span>Bill this chat to</span></label>
+    <div class="seg" style="margin:-8px 0 10px" role="group" aria-label="Attribution target">
+      <button type="button" id="tProj" aria-pressed="true">Project</button>
+      <button type="button" id="tInv" aria-pressed="false">Invoice line item</button>
+    </div>
+    <label class="f"><span id="tLabel">Project ID</span><input type="text" id="sTarget" placeholder="required by the proxy" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+    <p class="hint">The proxy rejects any request without one. Sent as <code id="tHeader">X-Project-Id</code>.</p>
+    <label class="f"><span>System prompt (optional)</span><textarea id="sSys" placeholder="Leave empty to see the model's default voice"></textarea></label>
+    <div class="row"><input type="checkbox" id="sStream" checked><label for="sStream">Stream replies</label></div>
+    <p class="hint">Turn off if replies arrive blank or error out; some models on the proxy may not stream.</p>
+    <button class="primary" id="sSave" type="button">Save</button>
+  </div>
+</div>
+
+<div class="sheet" id="histSheet" hidden>
+  <div class="card">
+    <h2>Chats <button id="histClose" type="button">Done</button></h2>
+    <div id="histList"></div>
+    <p class="hint" style="margin-top:14px">History lives in this browser only.</p>
+    <button class="danger" id="histClear" type="button">Delete all chats</button>
+  </div>
+</div>
+
+<script>
+(function(){
+const BASE="https://app-llmproxy.surgehq.ai/api/llm_proxy/openai/v1/chat/completions";
+const $=id=>document.getElementById(id);
+const store={
+  get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+};
+let settings=Object.assign({key:"",model:"afm-v11-5",targetType:"project",target:"",system:"",stream:true},store.get("pafm.settings",{}));
+let chats=store.get("pafm.chats",[]);
+let cur=null, abort=null;
+
+/* ---------- rendering ---------- */
+function esc(s){return s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]))}
+function md(s){
+  // minimal: fenced code, inline code, bold, italics
+  let out="",parts=s.split(/```/);
+  parts.forEach((p,i)=>{
+    if(i%2){const nl=p.indexOf("\n");const body=nl>=0?p.slice(nl+1):p;out+="<pre><code>"+esc(body.replace(/\n$/,""))+"</code></pre>"}
+    else out+=esc(p).replace(/`([^`\n]+)`/g,"<code>$1</code>").replace(/\*\*([^*\n]+)\*\*/g,"<strong>$1</strong>").replace(/(^|\s)\*([^*\n]+)\*/g,"$1<em>$2</em>")
+  });
+  return out;
+}
+function render(){
+  const t=$("thread");t.innerHTML="";
+  $("modelChip").textContent=settings.model||"model";
+  if(!cur||!cur.messages.length){
+    const e=document.createElement("div");e.className="empty";
+    e.innerHTML=settings.key&&settings.target
+      ?"<b>"+esc(settings.model)+"</b>Say something. Replies come straight from the proxy."
+      :"<b>Set up first</b>Add your proxy key and a project or invoice line item ID.<br><button type=button id=emptySet>Open settings</button>";
+    t.appendChild(e);
+    const b=$("emptySet");if(b)b.onclick=openSettings;
+  } else {
+    cur.messages.forEach((m,i)=>{
+      const d=document.createElement("div");d.className="msg "+m.role;d.id="m"+i;
+      if(m.role==="assistant"){d.innerHTML=md(m.content)+(m.meta?'<span class="meta">'+esc(m.meta)+"</span>":"")}
+      else d.textContent=m.content;
+      t.appendChild(d);
+    });
+  }
+  $("title").textContent=cur&&cur.title?cur.title:"New chat";
+  t.scrollTop=t.scrollHeight;
+}
+function save(){ if(cur&&cur.messages.length){const i=chats.findIndex(c=>c.id===cur.id);if(i<0)chats.unshift(cur);else chats[i]=cur;} store.set("pafm.chats",chats) }
+
+/* ---------- chat ---------- */
+function newChat(){cur={id:Date.now().toString(36),title:"",model:settings.model,messages:[],created:Date.now()};render();$("input").focus()}
+function headers(){
+  const h={"Content-Type":"application/json","Authorization":"Bearer "+settings.key};
+  h[settings.targetType==="invoice"?"X-Invoice-Line-Item-Id":"X-Project-Id"]=settings.target;
+  return h;
+}
+function apiMessages(){
+  const m=cur.messages.filter(x=>x.role==="user"||x.role==="assistant").map(x=>({role:x.role,content:x.content}));
+  return settings.system?[{role:"system",content:settings.system}].concat(m):m;
+}
+async function send(text){
+  if(!settings.key||!settings.target){openSettings();return}
+  if(!cur)newChat();
+  cur.messages.push({role:"user",content:text});
+  if(!cur.title)cur.title=text.slice(0,48);
+  const a={role:"assistant",content:"",meta:""};cur.messages.push(a);
+  render();
+  const el=$("m"+(cur.messages.length-1));el.classList.add("cursor");
+  setBusy(true);
+  abort=new AbortController();
+  const t0=performance.now();
+  try{
+    const body={model:settings.model,messages:apiMessages(),stream:!!settings.stream};
+    const r=await fetch(BASE,{method:"POST",headers:headers(),body:JSON.stringify(body),signal:abort.signal});
+    if(!r.ok){
+      let msg=await r.text();try{const j=JSON.parse(msg);msg=(j.error&&j.error.message)||msg}catch(e){}
+      throw new Error("HTTP "+r.status+": "+msg);
+    }
+    if(settings.stream&&r.body&&(r.headers.get("content-type")||"").includes("text/event-stream")){
+      const rd=r.body.getReader(),dec=new TextDecoder();let buf="";
+      for(;;){
+        const {value,done}=await rd.read();if(done)break;
+        buf+=dec.decode(value,{stream:true});
+        const lines=buf.split("\n");buf=lines.pop();
+        for(const ln of lines){
+          const s=ln.trim();if(!s.startsWith("data:"))continue;
+          const d=s.slice(5).trim();if(d==="[DONE]")continue;
+          try{const j=JSON.parse(d);const delta=j.choices&&j.choices[0]&&j.choices[0].delta;if(delta&&delta.content){a.content+=delta.content;el.innerHTML=md(a.content);$("thread").scrollTop=$("thread").scrollHeight}}catch(e){}
+        }
+      }
+    } else {
+      const j=await r.json();
+      a.content=(j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content)||JSON.stringify(j);
+    }
+    const secs=((performance.now()-t0)/1000).toFixed(1);
+    a.meta=settings.model+" · "+secs+"s";
+  }catch(e){
+    if(e.name==="AbortError"){a.meta="stopped";}
+    else{cur.messages.pop();cur.messages.push({role:"error",content:e.message});}
+  }
+  abort=null;setBusy(false);save();render();
+}
+function setBusy(b){const s=$("send");s.classList.toggle("stop",b);s.disabled=false;
+  s.innerHTML=b?'<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>':'<svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
+  $("input").disabled=b;}
+
+/* ---------- composer ---------- */
+const inp=$("input");
+inp.addEventListener("input",()=>{inp.style.height="auto";inp.style.height=Math.min(inp.scrollHeight,window.innerHeight*.38)+"px";$("send").disabled=!inp.value.trim()&&!abort});
+inp.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!/Mobi|iPhone|Android/.test(navigator.userAgent)){e.preventDefault();$("composer").requestSubmit()}});
+$("composer").addEventListener("submit",e=>{
+  e.preventDefault();
+  if(abort){abort.abort();return}
+  const v=inp.value.trim();if(!v)return;
+  inp.value="";inp.style.height="auto";$("send").disabled=true;
+  send(v);
+});
+
+/* ---------- settings ---------- */
+function openSettings(){
+  $("sKey").value=settings.key;$("sModel").value=settings.model;$("sTarget").value=settings.target;$("sSys").value=settings.system;$("sStream").checked=!!settings.stream;
+  setTarget(settings.targetType);$("setSheet").hidden=false;
+}
+function setTarget(t){
+  settings.targetType=t;
+  $("tProj").setAttribute("aria-pressed",t==="project");$("tInv").setAttribute("aria-pressed",t==="invoice");
+  $("tLabel").textContent=t==="invoice"?"Invoice line item ID":"Project ID";
+  $("tHeader").textContent=t==="invoice"?"X-Invoice-Line-Item-Id":"X-Project-Id";
+}
+$("tProj").onclick=()=>setTarget("project");$("tInv").onclick=()=>setTarget("invoice");
+$("btnSet").onclick=openSettings;$("setClose").onclick=()=>{$("setSheet").hidden=true};
+$("sSave").onclick=()=>{
+  settings.key=$("sKey").value.trim();settings.model=$("sModel").value.trim()||"afm-v11-5";settings.target=$("sTarget").value.trim();settings.system=$("sSys").value;settings.stream=$("sStream").checked;
+  store.set("pafm.settings",settings);$("setSheet").hidden=true;render();
+};
+
+/* ---------- history ---------- */
+function openHist(){
+  const l=$("histList");l.innerHTML="";
+  if(!chats.length)l.innerHTML='<p class="hint">No chats yet.</p>';
+  chats.forEach(c=>{
+    const d=document.createElement("div");d.className="hist";
+    const b=document.createElement("button");b.className="t";b.type="button";
+    b.innerHTML=esc(c.title||"Untitled")+"<small>"+esc(c.model||"")+" · "+new Date(c.created).toLocaleDateString()+" · "+c.messages.filter(m=>m.role==="user").length+" turns</small>";
+    b.onclick=()=>{cur=c;$("histSheet").hidden=true;render()};
+    const x=document.createElement("button");x.className="x";x.type="button";x.textContent="✕";x.setAttribute("aria-label","Delete chat");
+    x.onclick=()=>{chats=chats.filter(z=>z.id!==c.id);store.set("pafm.chats",chats);if(cur&&cur.id===c.id)newChat();openHist()};
+    d.append(b,x);l.appendChild(d);
+  });
+  $("histSheet").hidden=false;
+}
+$("btnHist").onclick=openHist;$("histClose").onclick=()=>{$("histSheet").hidden=true};
+$("histClear").onclick=()=>{if($("histClear").dataset.arm){chats=[];store.set("pafm.chats",chats);newChat();openHist();$("histClear").textContent="Delete all chats";delete $("histClear").dataset.arm}else{$("histClear").dataset.arm="1";$("histClear").textContent="Tap again to delete everything"}};
+$("btnNew").onclick=newChat;
+document.querySelectorAll(".sheet").forEach(s=>s.addEventListener("click",e=>{if(e.target===s)s.hidden=true}));
+
+cur=chats[0]||null; if(!cur)newChat(); else render();
+})();
+</script>
